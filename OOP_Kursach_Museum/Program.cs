@@ -16,7 +16,7 @@ namespace OOP_Kursach_Museum
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Main());
+            Application.Run(new Info());
         }
     }
 }

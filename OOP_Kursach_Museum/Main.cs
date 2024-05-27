@@ -1,153 +1,133 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 
 namespace OOP_Kursach_Museum
 {
-    public partial class Main : System.Windows.Forms.Form
+    /// <summary>
+    /// Основная форма приложения для управления музейными экспонатами.
+    /// </summary>
+    public partial class Main : Form
     {
-        public struct User
-        {
-            public string name;
-            public int age;
-            public string exhibitName;
+        private List<Museum> users = new List<Museum>();
+        private ContextMenuStrip contextMenuStrip;
 
-            public User(string _name, int _age, string _exhibitName) // конструктор
-            {
-                name = _name;
-                age = _age;
-                exhibitName = _exhibitName;
-            }
-        }
-
-        public struct NewUser
-        {
-            public string name;
-            public int age;
-            public string exhibitName;
-
-            public NewUser(string _name, int _age, string _exhibitName)
-            {
-                name = _name;
-                age = _age;
-                exhibitName = _exhibitName;
-            }
-        }
-
-        List<User> users = new List<User>();
-        List<NewUser> newUser = new List<NewUser>();
-
+        /// <summary>
+        /// Конструктор формы.
+        /// </summary>
         public Main()
         {
             InitializeComponent();
             dataGridView1.CellClick += dataGridView1_CellClick;
+            dataGridView1.CellValueChanged += dataGridView1_CellValueChanged;
+            dataGridView1.CurrentCellDirtyStateChanged += dataGridView1_CurrentCellDirtyStateChanged;
+            buttonDeleteDatabase.Click += buttonDeleteDatabase_Click;
+            button2.Click += button2_Click; // Добавляем обработчик для button2
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+
+            textBox1.TextChanged += TextBox1_TextChanged;
+            ComboBoxFilterByName.SelectedIndexChanged += FilterComboBoxes_Changed;
+            ComboBoxFilterByYear.SelectedIndexChanged += FilterComboBoxes_Changed;
+            checkBoxFilterOnExhibit.CheckedChanged += FilterComboBoxes_Changed;
+
+            contextMenuStrip = new ContextMenuStrip();
+            contextMenuStrip.Items.Add("Удалить").Click += Delete_Click;
+            dataGridView1.ContextMenuStrip = contextMenuStrip;
+            dataGridView1.MouseDown += DataGridView1_MouseDown;
         }
 
+        /// <summary>
+        /// Обработчик события загрузки формы.
+        /// </summary>
         private void Form1_Load(object sender, EventArgs e)
         {
-            
-            
             dataGridView1.AllowUserToAddRows = false;
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             DataTable table = new DataTable();
             table.Columns.Add("Автор", typeof(string));
             table.Columns.Add("Год Создания", typeof(int));
             table.Columns.Add("Название экспоната", typeof(string));
+            table.Columns.Add("На выставке", typeof(bool));
 
-            // Чтение начальных данных из input.txt
-            string filePath = "input.txt";
-            if (File.Exists(filePath))
+            users = FileManager.ReadFromFile();
+            foreach (var user in users)
             {
-                string[] lines = File.ReadAllLines(filePath);
-                foreach (string line in lines)
-                {
-                    string[] parts = line.Split(' ');
-                    if (parts.Length == 3 && int.TryParse(parts[1], out int age))
-                    {
-                        string name = parts[0];
-                        string exhibitName = parts[2]; // Новое чтение для Название экспоната
-                        users.Add(new User(name, age, exhibitName)); // Обновлено создание объекта User
-                        newUser.Add(new NewUser(name, age, exhibitName)); // Необходимо обновить создание объекта NewUser
-                        table.Rows.Add(name, age, exhibitName); // Добавлено в DataTable
-                    }
-                }
-            }
-            else
-            {
-                // Создаем файл, если его нет
-                File.Create(filePath).Close();
+                table.Rows.Add(user.Name, user.Year, user.ExhibitName, user.OnExhibit);
             }
 
             dataGridView1.DataSource = table;
-
-            //--------------------------------------
             UpdateFilterComboBoxes();
+            UpdateExhibitCount();
         }
 
-        //Обновление комбобоксов
+        /// <summary>
+        /// Обновляет значения в комбобоксах фильтров.
+        /// </summary>
         private void UpdateFilterComboBoxes()
         {
-            // Обновление комбобокса для фильтрации по имени
             ComboBoxFilterByName.Items.Clear();
-            ComboBoxFilterByName.Items.Add(""); // Пустое значение для отмены фильтрации
+            ComboBoxFilterByName.Items.Add("");
             foreach (var user in users)
             {
-                if (!ComboBoxFilterByName.Items.Contains(user.name))
+                if (!ComboBoxFilterByName.Items.Contains(user.Name))
                 {
-                    ComboBoxFilterByName.Items.Add(user.name);
+                    ComboBoxFilterByName.Items.Add(user.Name);
                 }
             }
 
-            // Обновление комбобокса для фильтрации по Год Создания
-            ComboBoxFilterByAge.Items.Clear();
-            ComboBoxFilterByAge.Items.Add(""); // Пустое значение для отмены фильтрации
+            ComboBoxFilterByYear.Items.Clear();
+            ComboBoxFilterByYear.Items.Add("");
             foreach (var user in users)
             {
-                if (!ComboBoxFilterByAge.Items.Contains(user.age.ToString()))
+                if (!ComboBoxFilterByYear.Items.Contains(user.Year.ToString()))
                 {
-                    ComboBoxFilterByAge.Items.Add(user.age.ToString());
+                    ComboBoxFilterByYear.Items.Add(user.Year.ToString());
                 }
             }
         }
 
-        //Добавление данных в поля по нажатию
+        /// <summary>
+        /// Обработчик клика по ячейке DataGridView.
+        /// </summary>
         private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0)
             {
                 DataGridViewRow row = dataGridView1.Rows[e.RowIndex];
                 textBoxName.Text = row.Cells["Автор"].Value.ToString();
-                textBoxAge.Text = row.Cells["Год Создания"].Value.ToString();
-                textBoxExhibitName.Text = row.Cells["Название экспоната"].Value.ToString(); // Обновляем значение Название экспоната
-
+                textBoxYear.Text = row.Cells["Год Создания"].Value.ToString();
+                textBoxExhibitName.Text = row.Cells["Название экспоната"].Value.ToString();
+                checkBoxOnExhibit.Checked = (bool)row.Cells["На выставке"].Value;
             }
         }
 
-        //Добавить
+        /// <summary>
+        /// Обработчик клика по кнопке добавления экспоната.
+        /// </summary>
         private void button1_Click(object sender, EventArgs e)
         {
             string name = textBoxName.Text;
-            string exhibitName = textBoxExhibitName.Text; // Новое поле "Название экспоната"
-            if (int.TryParse(textBoxAge.Text, out int age))
+            string exhibitName = textBoxExhibitName.Text;
+            bool onExhibit = checkBoxOnExhibit.Checked;
+            if (int.TryParse(textBoxYear.Text, out int year))
             {
-                // Добавление в список users
-                users.Add(new User(name, age, exhibitName));
-
-                // Добавление в DataTable
-                DataTable table = (DataTable)dataGridView1.DataSource;
-                table.Rows.Add(name, age, exhibitName);
-
-                // Добавление в список newUser
-                newUser.Add(new NewUser(name, age, exhibitName));
-
-                // Добавление в файл
-                using (FileStream fs = new FileStream("input.txt", FileMode.Append, FileAccess.Write))
-                using (StreamWriter sw = new StreamWriter(fs))
+                int currentYear = DateTime.Now.Year;
+                if (year <= currentYear)
                 {
-                    sw.WriteLine(name + " " + age + " " + exhibitName); // Записываем все три значения
+                    var museum = new Museum(name, year, exhibitName, onExhibit);
+                    users.Add(museum);
+                    DataTable table = (DataTable)dataGridView1.DataSource;
+                    table.Rows.Add(name, year, exhibitName, onExhibit);
+                    FileManager.AppendToFile(museum);
+                    UpdateExhibitCount();
+                }
+                else
+                {
+                    MessageBox.Show("Год не может быть больше текущего года");
                 }
             }
             else
@@ -157,137 +137,212 @@ namespace OOP_Kursach_Museum
             UpdateFilterComboBoxes();
         }
 
-        //Редактировать
+        /// <summary>
+        /// Записывает данные пользователей в файл.
+        /// </summary>
+        private void WriteDataToFile()
+        {
+            FileManager.WriteToFile(users);
+            UpdateFilterComboBoxes();
+        }
+
+        /// <summary>
+        /// Обработчик изменения фильтров.
+        /// </summary>
+        private void FilterComboBoxes_Changed(object sender, EventArgs e)
+        {
+            ApplyFilters();
+        }
+
+        /// <summary>
+        /// Обработчик изменения текста в текстовом поле поиска.
+        /// </summary>
+        private void TextBox1_TextChanged(object sender, EventArgs e)
+        {
+            ApplyFilters();
+        }
+
+        /// <summary>
+        /// Применяет фильтры к списку пользователей.
+        /// </summary>
+        private void ApplyFilters()
+        {
+            string filterByName = ComboBoxFilterByName.Text.Trim();
+            string filterByYearText = ComboBoxFilterByYear.Text.Trim();
+            int filterByYear;
+            bool filterByYearEnabled = int.TryParse(filterByYearText, out filterByYear);
+            bool filterByOnExhibit = checkBoxFilterOnExhibit.Checked;
+
+            var filteredUsers = users;
+            if (!string.IsNullOrWhiteSpace(filterByName))
+            {
+                filteredUsers = filteredUsers.Where(u => u.Name.Contains(filterByName)).ToList();
+            }
+
+            if (filterByYearEnabled)
+            {
+                filteredUsers = filteredUsers.Where(u => u.Year == filterByYear).ToList();
+            }
+
+            if (filterByOnExhibit)
+            {
+                filteredUsers = filteredUsers.Where(u => u.OnExhibit).ToList();
+            }
+
+            string searchText = textBox1.Text.Trim();
+            if (!string.IsNullOrEmpty(searchText))
+            {
+                filteredUsers = filteredUsers.Where(u => u.Name.Contains(searchText) || u.Year.ToString().Contains(searchText) || u.ExhibitName.Contains(searchText)).ToList();
+            }
+
+            UpdateData(filteredUsers);
+            UpdateExhibitCount();
+        }
+
+        /// <summary>
+        /// Обновляет данные в DataGridView.
+        /// </summary>
+        private void UpdateData(List<Museum> filteredUsers)
+        {
+            DataTable table = (DataTable)dataGridView1.DataSource;
+            table.Rows.Clear();
+            foreach (var user in filteredUsers)
+            {
+                table.Rows.Add(user.Name, user.Year, user.ExhibitName, user.OnExhibit);
+            }
+        }
+
+        /// <summary>
+        /// Обновляет количество экспонатов.
+        /// </summary>
+        private void UpdateExhibitCount()
+        {
+            labelCount.Text = $"Общее количество экспонатов: {dataGridView1.Rows.Count}";
+            int exhibitCount = users.Count(u => u.OnExhibit);
+            labelExhibitCount.Text = $"Экспонатов на выставке: {exhibitCount}";
+        }
+
+        /// <summary>
+        /// Обработчик клика по кнопке удаления базы данных.
+        /// </summary>
+        private void buttonDeleteDatabase_Click(object sender, EventArgs e)
+        {
+            users.Clear();
+            DataTable table = (DataTable)dataGridView1.DataSource;
+            table.Rows.Clear();
+            FileManager.DeleteFile();
+            UpdateExhibitCount();
+            UpdateFilterComboBoxes();
+        }
+
+        /// <summary>
+        /// Обработчик изменения значения ячейки DataGridView.
+        /// </summary>
+        private void dataGridView1_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                string name = dataGridView1.Rows[e.RowIndex].Cells["Автор"].Value.ToString();
+                int year = (int)dataGridView1.Rows[e.RowIndex].Cells["Год Создания"].Value;
+                string exhibitName = dataGridView1.Rows[e.RowIndex].Cells["Название экспоната"].Value.ToString();
+                bool onExhibit = (bool)dataGridView1.Rows[e.RowIndex].Cells["На выставке"].Value;
+
+                users[e.RowIndex] = new Museum(name, year, exhibitName, onExhibit);
+                WriteDataToFile();
+                UpdateExhibitCount();
+            }
+        }
+
+        /// <summary>
+        /// Обработчик изменения состояния редактируемой ячейки DataGridView.
+        /// </summary>
+        private void dataGridView1_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            if (dataGridView1.IsCurrentCellDirty)
+            {
+                dataGridView1.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+
+        /// <summary>
+        /// Обработчик нажатия правой кнопкой мыши на DataGridView.
+        /// </summary>
+        private void DataGridView1_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                var hit = dataGridView1.HitTest(e.X, e.Y);
+                dataGridView1.ClearSelection();
+                if (hit.RowIndex >= 0)
+                {
+                    dataGridView1.Rows[hit.RowIndex].Selected = true;
+                    contextMenuStrip.Show(dataGridView1, e.Location);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Обработчик клика по пункту контекстного меню "Удалить".
+        /// </summary>
+        private void Delete_Click(object sender, EventArgs e)
+        {
+            if (dataGridView1.SelectedRows.Count > 0)
+            {
+                int index = dataGridView1.SelectedRows[0].Index;
+                users.RemoveAt(index);
+                dataGridView1.Rows.RemoveAt(index);
+                WriteDataToFile();
+                UpdateExhibitCount();
+                UpdateFilterComboBoxes();
+            }
+        }
+
+        /// <summary>
+        /// Обработчик клика по кнопке редактирования экспоната.
+        /// </summary>
         private void button2_Click(object sender, EventArgs e)
         {
             if (dataGridView1.CurrentRow != null && dataGridView1.CurrentRow.Index >= 0)
             {
                 int selectedIndex = dataGridView1.CurrentRow.Index;
+                string previousYear = dataGridView1.CurrentRow.Cells["Год Создания"].Value.ToString();
 
-                if (int.TryParse(textBoxAge.Text, out int age))
+                if (int.TryParse(textBoxYear.Text, out int year))
                 {
+                    // Валидация года                
+                    int currentYear = DateTime.Now.Year;
+                    if (year > currentYear)
+                    {
+                        MessageBox.Show("Год создания не может быть больше текущего года.");
+                        textBoxYear.Text = previousYear; // Возвращаем предыдущее значение
+                        return;
+                    }
+
                     // Обновление DataTable
                     DataTable table = (DataTable)dataGridView1.DataSource;
                     table.Rows[selectedIndex]["Автор"] = textBoxName.Text;
-                    table.Rows[selectedIndex]["Год Создания"] = age;
-                    table.Rows[selectedIndex]["Название экспоната"] = textBoxExhibitName.Text; // Обновляем значение Название экспоната
+                    table.Rows[selectedIndex]["Год Создания"] = year;
+                    table.Rows[selectedIndex]["Название экспоната"] = textBoxExhibitName.Text;
+                    table.Rows[selectedIndex]["На выставке"] = checkBoxOnExhibit.Checked;
 
                     // Обновление списка users
-                    users[selectedIndex] = new User(textBoxName.Text, age, textBoxExhibitName.Text);
-
-                    // Обновление списка newUser
-                    newUser[selectedIndex] = new NewUser(textBoxName.Text, age, textBoxExhibitName.Text);
+                    users[selectedIndex] = new Museum(textBoxName.Text, year, textBoxExhibitName.Text, checkBoxOnExhibit.Checked);
 
                     // Запись обновленных данных обратно в файл
                     WriteDataToFile();
+
+                    // Обновление количества экспонатов
+                    UpdateExhibitCount();
                 }
                 else
                 {
-                    MessageBox.Show("Год Создания должен быть числом");
+                    MessageBox.Show("Год Создания должен быть числом.");
+                    textBoxYear.Text = previousYear; // Возвращаем предыдущее значение
                 }
             }
             else
             {
                 MessageBox.Show("Пожалуйста, выберите строку для редактирования.");
-            }
-        }
-
-        //Удалить        
-        private void button3_Click(object sender, EventArgs e)
-        {
-            if (dataGridView1.CurrentRow != null && dataGridView1.CurrentRow.Index >= 0)
-            {
-                int selectedIndex = dataGridView1.CurrentRow.Index;
-
-                // Удаление из DataTable
-                DataTable table = (DataTable)dataGridView1.DataSource;
-                table.Rows.RemoveAt(selectedIndex);
-
-                // Удаление из списка users
-                users.RemoveAt(selectedIndex);
-
-                // Удаление из списка newUser
-                newUser.RemoveAt(selectedIndex);
-
-                // Запись обновленных данных обратно в файл
-                WriteDataToFile();
-            }
-            else
-            {
-                MessageBox.Show("Пожалуйста, выберите строку для удаления.");
-            }
-        }
-
-        //Запись данных в файл
-        private void WriteDataToFile()
-        {
-            using (FileStream fs = new FileStream("input.txt", FileMode.Create, FileAccess.Write))
-            using (StreamWriter sw = new StreamWriter(fs))
-            {
-                foreach (var user in newUser)
-                {
-                    sw.WriteLine(user.name + " " + user.age);
-                }
-            }
-            UpdateFilterComboBoxes();
-        }
-
-        //Фильтрация
-        private void button4_Click(object sender, EventArgs e)
-        {
-            // Получаем значения для фильтрации
-            string filterByName = ComboBoxFilterByName.Text.Trim();
-            string filterByAgeText = ComboBoxFilterByAge.Text.Trim();
-            int filterByAge;
-            bool filterByAgeEnabled = int.TryParse(filterByAgeText, out filterByAge);
-
-            // Фильтруем данные в зависимости от выбранных фильтров
-            var filteredUsers = users;
-
-            if (!string.IsNullOrWhiteSpace(filterByName))
-            {
-                filteredUsers = filteredUsers.Where(u => u.name.Contains(filterByName)).ToList();
-            }
-
-            if (filterByAgeEnabled)
-            {
-                filteredUsers = filteredUsers.Where(u => u.age == filterByAge).ToList();
-            }
-
-            // Очищаем таблицу и добавляем отфильтрованные данные
-            DataTable table = (DataTable)dataGridView1.DataSource;
-            table.Rows.Clear();
-            foreach (var user in filteredUsers)
-            {
-                table.Rows.Add(user.name, user.age, user.exhibitName);
-            }
-        }
-
-        //Поиск
-        private void button5_Click(object sender, EventArgs e)
-        {
-            string searchText = textBox1.Text.Trim();
-
-            if (!string.IsNullOrWhiteSpace(searchText))
-            {
-                var filteredUsers = users.Where(u => u.name.Contains(searchText) || u.age.ToString().Contains(searchText) || u.exhibitName.Contains(searchText)).ToList();
-                UpdateDataGridView(filteredUsers);
-            }
-            else
-            {
-                // Если поле поиска пустое, отобразите все записи
-                UpdateDataGridView(users);
-            }
-        }
-
-        // Метод для обновления DataGridView
-        private void UpdateDataGridView(List<User> filteredUsers)
-        {
-            DataTable table = (DataTable)dataGridView1.DataSource;
-            table.Rows.Clear();
-            foreach (var user in filteredUsers)
-            {
-                table.Rows.Add(user.name, user.age, user.exhibitName);
             }
         }
     }
